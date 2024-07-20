@@ -1,45 +1,7 @@
-/*******************************************************************************
-*
-* McXtrace, X-ray tracing package
-*         Copyright, All rights reserved
-*         Risoe National Laboratory, Roskilde, Denmark
-*         University of Copenhagen, Copenhagen, Denmark
-*
-* Component: Absorption_sample
-*
-* %I
-*
-* Written by:Erik B Knudsen
-* Date: March 2011
-* Version: 1.0
-* Origin: Risoe
-*
-* Sample component with absorbing materials.
-*
-* %D
-* A sample component consisting of a box/cylinder of one material and a box/cylinder of another 
-* material inside. This is useful as a phantom for simulating tomography experiments.
-*
-* %P
-* Input parameters: 
-* radius_o: [m] Radius of "outer" enclosing material cylinder (0)
-* xwidth_o: [m] Width of "outer" enclosing material box (yheight)
-* yheight_o: [m] Height of "outer enclosing material box (1) 
-* zdepth_o: [m] Thickness of outer enclosing material box (yheight)
-* radius_i: [m] Radius of "inner" enclosed material cylinder (0)
-* xwidth_i: [m] Width of "inner" enclosed material box (yheight)
-* yheight_i: [m] Height of "inner enclosed material (1) 
-* zdepth_i: [m] Thickness of inner enclosed material box (yheight)
-* x_i: [m] center x-coordinate of "inner" object
-* y_i: [m] center y-coordinate of "inner" object
-* z_i: [m] center z-coordinate of "inner" object
-* rho_i: [g/cm^3] density of the enclosed material
-* rho_o: [g/cm^3] density of the enclosing material
-*
-* %E
+
 *******************************************************************************/
 
-DEFINE COMPONENT Absorption_and_Snells_A
+DEFINE COMPONENT Absorption_and_Snells
 DEFINITION PARAMETERS (string material_datafile_i="",string material_datafile_o="")
 SETTING PARAMETERS (radius_o=0,xwidth_o=0,yheight_o=1,zdepth_o=0,radius_i=0,xwidth_i=0,yheight_i=0.0,zdepth_i=0,x_i=0,y_i=0,z_i=0,rho_i=0,rho_o=0)
 OUTPUT PARAMETERS (prms_i,prms_o,t_i,t_o)
@@ -48,7 +10,7 @@ OUTPUT PARAMETERS (prms_i,prms_o,t_i,t_o)
 SHARE
 %{
   %include "read_table-lib"
-void refract_photon_cyl(double deltaTAB_f, int inter_num_f, double x_f, double y_f, 
+void refract_photon_cyl(double deltaTAB_f, double deltaTAB_i, int inter_num_f, double x_f, double y_f, 
 	double z_f, double *kx_f, double *ky_f, double *kz_f, double xyz1[3], double xyz2[3])
 {
 	double c[3], k[3], b1=0, b2=0, b3=0, nk[3], Cyl[3], nCyl[3], refract[3]; 
@@ -71,13 +33,13 @@ void refract_photon_cyl(double deltaTAB_f, int inter_num_f, double x_f, double y
 		xyz1[0] = x_f;
 		xyz1[1] = y_f;
 		xyz1[2] = z_f;
-		ref = 1 / deltaTAB_f;
+		ref = deltaTAB_i / deltaTAB_f;
 	}
 	if (inter_num_f == -1){
 		xyz2[0] = x_f;
 		xyz2[1] = y_f;
 		xyz2[2] = z_f;
-		ref = deltaTAB_f / 1;
+		ref = deltaTAB_f / deltaTAB_i;
 	}
 	      /* normalise k vector */
     b1=0, b2=0;
@@ -290,7 +252,7 @@ TRACE
 
 
     inter_num = 1;
-    refract_photon_cyl(deltaTAB, inter_num, x, y, z, &kx, &ky, &kz, xyz1, xyz2);
+    refract_photon_cyl(deltaTAB, 1, inter_num, x, y, z, &kx, &ky, &kz, xyz1, xyz2);
 
     status_i=0;
     if (radius_i && !yheight_i){
@@ -309,12 +271,12 @@ TRACE
     	deltaTAB_2 = 1.0 - deltaTAB_2;
     }
     inter_num_2 = 1;
-    refract_photon_cyl(deltaTAB_2, inter_num_2, x, y, z, &kx, &ky, &kz, xyz1, xyz2);
+    refract_photon_cyl(deltaTAB_2, deltaTAB, inter_num_2, x, y, z, &kx, &ky, &kz, xyz1, xyz2);
 
       PROP_DL(l1i-l0i);
       SCATTER;
     inter_num_2 = -1;
-    refract_photon_cyl(deltaTAB_2, inter_num_2, x, y, z, &kx, &ky, &kz, xyz1, xyz2);
+    refract_photon_cyl(deltaTAB_2, deltaTAB, inter_num_2, x, y, z, &kx, &ky, &kz, xyz1, xyz2);
 
       /*now calculate the mu*/
 	double k_3=sqrt(scalar_prod(kx,ky,kz,kx,ky,kz));
@@ -325,7 +287,7 @@ TRACE
     SCATTER;
     inter_num = -1;
     double k_4=sqrt(scalar_prod(kx,ky,kz,kx,ky,kz));
-    refract_photon_cyl(deltaTAB, inter_num, x, y, z, &kx, &ky, &kz, xyz1, xyz2);
+    refract_photon_cyl(deltaTAB, 1, inter_num, x, y, z, &kx, &ky, &kz, xyz1, xyz2);
     mu_o=4 * PI *Table_Value(t_o,K2E*k_4,prms_o.mu_c)* K2E*k_4 /1.23984193e-9;
     p*=exp(-(l1o-l0o-(l1i-l0i))*mu_o);
   }
